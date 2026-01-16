@@ -1,43 +1,84 @@
-import type { Category, Priority, Status } from '../types';
+import type { RequestStatus } from '../types';
 
-export const INSTRUMENT_DATA: Record<Category, string[]> = {
-  Brass: ['Trumpet', 'Trombone'],
-  Woodwinds: ['Saxophone', 'Flute', 'Clarinet', 'Oboe'],
-  Strings: ['Violin', 'Viola', 'Cello', 'Bass'],
-};
+// Instrument types - flat list for simpler selection
+export const INSTRUMENTS = [
+  'Trumpet',
+  'Trombone',
+  'Euphonium',
+  'French Horn',
+  'Saxophone',
+  'Clarinet',
+  'Flute',
+  'Violin',
+  'Viola',
+  'Cello',
+] as const;
 
-export const CATEGORIES: Category[] = ['Brass', 'Woodwinds', 'Strings'];
-
-export const BRANDS = [
-  'Yamaha',
-  'Bach',
-  'Conn',
-  'Selmer',
-  'Buffet',
-  'Getzen',
-  'King',
-  'Bundy',
-  'Armstrong',
-  'Jupiter',
-  'Other',
+// Request status flow:
+// 1. Requested - Tech submits request
+// 2. Shipped - Hub marks as shipped with date
+// 3. Received - Auto-changes when ship date is reached
+// 4. In Progress - Tech starts working
+// 5. Complete - Tech finishes, ready for pickup
+// 6. Picked Up - Hub confirms pickup
+export const REQUEST_STATUSES: RequestStatus[] = [
+  'Requested',
+  'Shipped',
+  'Received',
+  'In Progress',
+  'Complete',
+  'Picked Up',
 ];
 
-export const PRIORITIES: Priority[] = ['Low', 'Medium', 'High', 'Urgent'];
-
-export const STATUSES: Status[] = ['Pending', 'In Progress', 'Fulfilled', 'Cancelled'];
-
-export const STATUS_COLORS: Record<Status, { bg: string; text: string; border: string }> = {
-  Pending: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
-  'In Progress': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
-  Fulfilled: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
-  Cancelled: { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' },
-};
-
-export const PRIORITY_COLORS: Record<Priority, { bg: string; text: string; border: string }> = {
-  Low: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
-  Medium: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-  High: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
-  Urgent: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
+export const STATUS_CONFIG: Record<RequestStatus, {
+  bg: string;
+  text: string;
+  border: string;
+  icon: string;
+  description: string;
+}> = {
+  'Requested': {
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    border: 'border-amber-200',
+    icon: 'clock',
+    description: 'Awaiting shipment from hub'
+  },
+  'Shipped': {
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
+    icon: 'truck',
+    description: 'In transit to location'
+  },
+  'Received': {
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    border: 'border-purple-200',
+    icon: 'package-check',
+    description: 'Delivered, awaiting work'
+  },
+  'In Progress': {
+    bg: 'bg-orange-50',
+    text: 'text-orange-700',
+    border: 'border-orange-200',
+    icon: 'wrench',
+    description: 'Tech is working on refurb'
+  },
+  'Complete': {
+    bg: 'bg-green-50',
+    text: 'text-green-700',
+    border: 'border-green-200',
+    icon: 'check-circle',
+    description: 'Ready for pickup'
+  },
+  'Picked Up': {
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-200',
+    icon: 'archive',
+    description: 'Returned to hub'
+  },
 };
 
 export const TECH_SESSION_KEY = 'gc_refurb_tech_session';

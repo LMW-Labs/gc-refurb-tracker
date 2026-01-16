@@ -28,13 +28,11 @@ export default function Header({ variant, title, subtitle }: HeaderProps) {
 
   const techLinks = [
     { to: '/tech/request', label: 'New Request' },
-    { to: '/tech/complete', label: 'Log Completion' },
-    { to: '/tech/history', label: 'My History' },
+    { to: '/tech/history', label: 'My Requests' },
   ];
 
   const managerLinks = [
     { to: '/manager/dashboard', label: 'Dashboard' },
-    { to: '/manager/metrics', label: 'Metrics' },
     { to: '/manager/techs', label: 'Manage Techs' },
   ];
 

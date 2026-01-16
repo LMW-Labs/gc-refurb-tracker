@@ -1,12 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { RefurbRequest, Status, Category } from '../types';
+import type { RefurbRequest, RequestStatus, InstrumentType } from '../types';
+import { format } from 'date-fns';
 
 interface RequestFilters {
   locationId?: string;
   techId?: string;
-  status?: Status;
-  category?: Category;
+  status?: RequestStatus;
+  excludePickedUp?: boolean;
+}
+
+// Generate unique request ID: STORE-YYYYMMDD-XXXX
+async function generateRequestId(storeNumber: string): Promise<string> {
+  const dateStr = format(new Date(), 'yyyyMMdd');
+  const prefix = `${storeNumber}-${dateStr}`;
+
+  // Get count of requests today for this store
+  const { count } = await supabase
+    .from('refurb_requests')
+    .select('id', { count: 'exact', head: true })
+    .like('request_id', `${prefix}%`);
+
+  const sequence = String((count || 0) + 1).padStart(4, '0');
+  return `${prefix}-${sequence}`;
 }
 
 export function useRequests(filters: RequestFilters = {}) {
@@ -31,20 +47,43 @@ export function useRequests(filters: RequestFilters = {}) {
       if (filters.status) {
         query = query.eq('status', filters.status);
       }
-      if (filters.category) {
-        query = query.eq('category', filters.category);
+      if (filters.excludePickedUp) {
+        query = query.neq('status', 'Picked Up');
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      setRequests(data || []);
+
+      // Auto-update status for shipped items where delivery date has passed
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const updatedData = await Promise.all(
+        (data || []).map(async (req) => {
+          if (
+            req.status === 'Shipped' &&
+            req.expected_delivery &&
+            new Date(req.expected_delivery) <= today
+          ) {
+            // Update to Received
+            await supabase
+              .from('refurb_requests')
+              .update({ status: 'Received', updated_at: new Date().toISOString() })
+              .eq('id', req.id);
+            return { ...req, status: 'Received' as RequestStatus };
+          }
+          return req;
+        })
+      );
+
+      setRequests(updatedData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch requests');
     } finally {
       setLoading(false);
     }
-  }, [filters.locationId, filters.techId, filters.status, filters.category]);
+  }, [filters.locationId, filters.techId, filters.status, filters.excludePickedUp]);
 
   useEffect(() => {
     fetchRequests();
@@ -53,74 +92,78 @@ export function useRequests(filters: RequestFilters = {}) {
   const createRequest = async (request: {
     location_id: string;
     tech_id: string;
-    category: Category;
-    instrument_type: string;
-    brand: string;
-    quantity_requested: number;
-    priority: string;
+    instrument_type: InstrumentType;
+    quantity: number;
     notes?: string;
-  }) => {
+  }, storeNumber: string) => {
+    const request_id = await generateRequestId(storeNumber);
+
     const { data, error } = await supabase
       .from('refurb_requests')
-      .insert([request])
+      .insert([{
+        ...request,
+        request_id,
+        status: 'Requested',
+      }])
       .select('*, location:locations(*), technician:technicians(*)')
       .single();
 
     if (error) throw error;
-
-    // Log the activity
-    await supabase.from('activity_log').insert([
-      {
-        request_id: data.id,
-        action: 'REQUEST_CREATED',
-        details: { quantity: request.quantity_requested },
-        performed_by: data.technician?.name || 'Unknown',
-      },
-    ]);
-
     await fetchRequests();
     return data;
   };
 
   const updateStatus = async (
-    requestId: string,
-    status: Status,
-    fulfillmentData?: {
-      quantity_fulfilled?: number;
-      fulfilled_by?: string;
-      fulfillment_notes?: string;
+    id: string,
+    status: RequestStatus,
+    additionalData?: {
+      shipped_date?: string;
+      expected_delivery?: string;
+      started_date?: string;
+      completed_date?: string;
+      picked_up_date?: string;
     }
   ) => {
-    const updates: Partial<RefurbRequest> = {
+    const updates: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
+      ...additionalData,
     };
-
-    if (status === 'Fulfilled' && fulfillmentData) {
-      updates.quantity_fulfilled = fulfillmentData.quantity_fulfilled;
-      updates.fulfilled_by = fulfillmentData.fulfilled_by;
-      updates.fulfillment_notes = fulfillmentData.fulfillment_notes;
-      updates.fulfilled_date = new Date().toISOString();
-    }
 
     const { error } = await supabase
       .from('refurb_requests')
       .update(updates)
-      .eq('id', requestId);
+      .eq('id', id);
 
     if (error) throw error;
-
-    // Log the activity
-    await supabase.from('activity_log').insert([
-      {
-        request_id: requestId,
-        action: `STATUS_CHANGED_TO_${status.toUpperCase().replace(' ', '_')}`,
-        details: fulfillmentData || {},
-        performed_by: fulfillmentData?.fulfilled_by || 'Manager',
-      },
-    ]);
-
     await fetchRequests();
+  };
+
+  // Tech actions
+  const startWork = async (id: string) => {
+    await updateStatus(id, 'In Progress', {
+      started_date: new Date().toISOString(),
+    });
+  };
+
+  const completeWork = async (id: string) => {
+    await updateStatus(id, 'Complete', {
+      completed_date: new Date().toISOString(),
+    });
+  };
+
+  // Hub actions
+  const shipRequest = async (id: string, expectedDelivery: string) => {
+    await updateStatus(id, 'Shipped', {
+      shipped_date: new Date().toISOString(),
+      expected_delivery: expectedDelivery,
+    });
+  };
+
+  const confirmPickup = async (id: string) => {
+    await updateStatus(id, 'Picked Up', {
+      picked_up_date: new Date().toISOString(),
+    });
   };
 
   return {
@@ -129,30 +172,35 @@ export function useRequests(filters: RequestFilters = {}) {
     error,
     createRequest,
     updateStatus,
+    startWork,
+    completeWork,
+    shipRequest,
+    confirmPickup,
     refetch: fetchRequests,
   };
 }
 
 export function useRequestStats() {
   const [stats, setStats] = useState({
-    pending: 0,
+    requested: 0,
+    shipped: 0,
     inProgress: 0,
-    fulfilledToday: 0,
-    urgent: 0,
+    readyForPickup: 0,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const [pendingRes, inProgressRes, fulfilledTodayRes, urgentRes] = await Promise.all([
+        const [requestedRes, shippedRes, inProgressRes, completeRes] = await Promise.all([
           supabase
             .from('refurb_requests')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'Pending'),
+            .eq('status', 'Requested'),
+          supabase
+            .from('refurb_requests')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['Shipped', 'Received']),
           supabase
             .from('refurb_requests')
             .select('id', { count: 'exact', head: true })
@@ -160,20 +208,14 @@ export function useRequestStats() {
           supabase
             .from('refurb_requests')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'Fulfilled')
-            .gte('fulfilled_date', today.toISOString()),
-          supabase
-            .from('refurb_requests')
-            .select('id', { count: 'exact', head: true })
-            .eq('priority', 'Urgent')
-            .in('status', ['Pending', 'In Progress']),
+            .eq('status', 'Complete'),
         ]);
 
         setStats({
-          pending: pendingRes.count || 0,
+          requested: requestedRes.count || 0,
+          shipped: shippedRes.count || 0,
           inProgress: inProgressRes.count || 0,
-          fulfilledToday: fulfilledTodayRes.count || 0,
-          urgent: urgentRes.count || 0,
+          readyForPickup: completeRes.count || 0,
         });
       } catch (err) {
         console.error('Failed to fetch stats:', err);

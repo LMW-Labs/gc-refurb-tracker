@@ -1,8 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Home from './pages/Home';
-import { TechPortal, NewRequest, LogCompletion, MyHistory } from './pages/tech';
-import { ManagerLogin, Dashboard, Metrics, ManageTechs } from './pages/manager';
+import { TechPortal, NewRequest, MyHistory } from './pages/tech';
+import { ManagerLogin, Dashboard, ManageTechs } from './pages/manager';
 
 function App() {
   return (
@@ -14,13 +14,11 @@ function App() {
         {/* Tech Routes */}
         <Route path="/tech" element={<TechPortal />} />
         <Route path="/tech/request" element={<NewRequest />} />
-        <Route path="/tech/complete" element={<LogCompletion />} />
         <Route path="/tech/history" element={<MyHistory />} />
 
         {/* Manager Routes */}
         <Route path="/manager" element={<ManagerLogin />} />
         <Route path="/manager/dashboard" element={<Dashboard />} />
-        <Route path="/manager/metrics" element={<Metrics />} />
         <Route path="/manager/techs" element={<ManageTechs />} />
       </Routes>
 

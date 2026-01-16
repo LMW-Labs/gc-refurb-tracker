@@ -17,58 +17,54 @@ export interface Technician {
   location?: Location;
 }
 
-export type Category = 'Brass' | 'Woodwinds' | 'Strings';
-export type Priority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type Status = 'Pending' | 'In Progress' | 'Fulfilled' | 'Cancelled';
+// Request status flow
+export type RequestStatus =
+  | 'Requested'    // Tech submitted request
+  | 'Shipped'      // Hub shipped with expected delivery date
+  | 'Received'     // Auto-set when delivery date reached
+  | 'In Progress'  // Tech started working
+  | 'Complete'     // Tech finished, ready for pickup
+  | 'Picked Up';   // Hub confirmed pickup
+
+export type InstrumentType =
+  | 'Trumpet'
+  | 'Trombone'
+  | 'Euphonium'
+  | 'French Horn'
+  | 'Saxophone'
+  | 'Clarinet'
+  | 'Flute'
+  | 'Violin'
+  | 'Viola'
+  | 'Cello';
 
 export interface RefurbRequest {
   id: string;
-  request_number: number;
+  request_id: string;           // Unique ID: STORE-YYYYMMDD-XXXX (e.g., 9397-20260115-0001)
   location_id: string;
   tech_id: string;
-  category: Category;
-  instrument_type: string;
-  brand: string;
-  quantity_requested: number;
-  priority: Priority;
+  instrument_type: InstrumentType;
+  quantity: number;
+  status: RequestStatus;
   notes: string | null;
-  status: Status;
-  quantity_fulfilled: number;
-  fulfilled_date: string | null;
-  fulfilled_by: string | null;
-  fulfillment_notes: string | null;
+
+  // Shipping info (hub fills)
+  shipped_date: string | null;
+  expected_delivery: string | null;
+
+  // Work tracking (tech fills)
+  started_date: string | null;
+  completed_date: string | null;
+
+  // Pickup (hub fills)
+  picked_up_date: string | null;
+
   created_at: string;
   updated_at: string;
+
   // Joined data
   location?: Location;
   technician?: Technician;
-}
-
-export interface DailyCompletion {
-  id: string;
-  location_id: string;
-  tech_id: string;
-  category: Category;
-  instrument_type: string;
-  brand: string;
-  quantity_completed: number;
-  yellow_armband_applied: boolean;
-  qc_card_signed: boolean;
-  notes: string | null;
-  completion_date: string;
-  created_at: string;
-  // Joined data
-  location?: Location;
-  technician?: Technician;
-}
-
-export interface ActivityLog {
-  id: string;
-  request_id: string;
-  action: string;
-  details: Record<string, unknown>;
-  performed_by: string;
-  created_at: string;
 }
 
 export interface TechSession {

@@ -23,7 +23,7 @@ export function useRealtimeRequests(onNewRequest: () => void) {
 
           if (data) {
             toast.success(
-              `New request from ${data.location?.city || 'Unknown'} - ${data.quantity_requested}x ${data.instrument_type}`,
+              `New request from ${data.location?.city || 'Unknown'} - ${data.quantity}x ${data.instrument_type}`,
               { duration: 5000 }
             );
           }
@@ -48,27 +48,4 @@ export function useRealtimeRequests(onNewRequest: () => void) {
       supabase.removeChannel(channel);
     };
   }, [onNewRequest]);
-}
-
-export function useRealtimeCompletions(onNewCompletion: () => void) {
-  useEffect(() => {
-    const channel = supabase
-      .channel('daily_completions_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'daily_completions',
-        },
-        () => {
-          onNewCompletion();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [onNewCompletion]);
 }
